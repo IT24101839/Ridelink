@@ -1,5 +1,7 @@
 package com.ridelink.account.controller;
 
+import com.ridelink.account.dto.AuthResponse;
+import com.ridelink.account.dto.LoginRequest;
 import com.ridelink.account.dto.RegisterRequest;
 import com.ridelink.account.dto.UserResponse;
 import com.ridelink.account.entity.User;
@@ -37,5 +39,14 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        AuthResponse response = authService.login(request);
+
+        return ResponseEntity.ok(response);
     }
 }
