@@ -48,6 +48,18 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotFound(
+            UserNotFoundException exception) {
+
+        Map<String, String> response = new HashMap<>();
+        response.put("message", exception.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationErrors(
             MethodArgumentNotValidException exception) {
