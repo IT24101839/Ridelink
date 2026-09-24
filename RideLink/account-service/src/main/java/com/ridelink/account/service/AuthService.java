@@ -3,8 +3,10 @@ package com.ridelink.account.service;
 import com.ridelink.account.dto.AuthResponse;
 import com.ridelink.account.dto.LoginRequest;
 import com.ridelink.account.dto.RegisterRequest;
+import com.ridelink.account.entity.Role;
 import com.ridelink.account.entity.User;
 import com.ridelink.account.exception.AccountInactiveException;
+import com.ridelink.account.exception.AdminRegistrationException;
 import com.ridelink.account.exception.EmailAlreadyExistsException;
 import com.ridelink.account.exception.InvalidCredentialsException;
 import com.ridelink.account.repository.UserRepository;
@@ -18,22 +20,21 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public AuthService(
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
-
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
 
     public User register(RegisterRequest request) {
+        if (request.getRole() == Role.ADMIN) {
+            throw new AdminRegistrationException();
+        }
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException(
-                    "Email already registered"
-            );
+            throw new EmailAlreadyExistsException(request.getEmail());
         }
 
         User user = User.builder()
@@ -49,36 +50,29 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() ->
-                        new InvalidCredentialsException(
-                                "Invalid email or password"
-                        )
-                );
+                .orElseThrow(InvalidCredentialsException::new);
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException();
+        }
 
         if (!user.isActive()) {
-            throw new AccountInactiveException(
-                    "User account is inactive"
-            );
+            throw new AccountInactiveException();
         }
 
-        if (!passwordEncoder.matches(
-                request.getPassword(),
-                user.getPassword())) {
-
-            throw new InvalidCredentialsException(
-                    "Invalid email or password"
-            );
-        }
-
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken(
+                user.getEmail(),
+                user.getRole().name(),
+                user.getId()
+        );
 
         return new AuthResponse(
                 token,
-                "Bearer",
                 user.getId(),
                 user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
                 user.getRole()
         );
     }
