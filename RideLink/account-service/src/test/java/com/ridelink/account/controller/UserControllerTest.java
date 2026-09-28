@@ -30,12 +30,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class UserControllerTest {
 
-    @Autowired WebApplicationContext context;
+    @Autowired
+    WebApplicationContext context;
 
-    @MockitoBean UserService userService;
-    @MockitoBean JwtService jwtService;
+    @MockitoBean
+    UserService userService;
+
+    @MockitoBean
+    JwtService jwtService;
 
     MockMvc mockMvc;
+
     final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -47,30 +52,52 @@ class UserControllerTest {
     }
 
     private static final UserResponse RESPONSE = new UserResponse(
-            1L, "John", "Doe", "john@example.com", Role.PASSENGER, true);
+            "user-1",
+            "John",
+            "Doe",
+            "john@example.com",
+            Role.PASSENGER,
+            true
+    );
 
     @Test
-    @WithMockUser(username = "john@example.com", roles = "PASSENGER")
+    @WithMockUser(
+            username = "john@example.com",
+            roles = "PASSENGER"
+    )
     void getMe_authenticated_returns200() throws Exception {
-        when(userService.getCurrentUser("john@example.com")).thenReturn(RESPONSE);
+
+        when(userService.getCurrentUser("john@example.com"))
+                .thenReturn(RESPONSE);
 
         mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("john@example.com"))
-                .andExpect(jsonPath("$.role").value("PASSENGER"));
+                .andExpect(jsonPath("$.email")
+                        .value("john@example.com"))
+                .andExpect(jsonPath("$.role")
+                        .value("PASSENGER"));
     }
 
     @Test
     void getMe_unauthenticated_returns401() throws Exception {
+
         mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @WithMockUser(username = "missing@example.com", roles = "PASSENGER")
+    @WithMockUser(
+            username = "missing@example.com",
+            roles = "PASSENGER"
+    )
     void getMe_userNotFound_returns404() throws Exception {
+
         when(userService.getCurrentUser("missing@example.com"))
-                .thenThrow(new UserNotFoundException("missing@example.com"));
+                .thenThrow(
+                        new UserNotFoundException(
+                                "User not found with email: missing@example.com"
+                        )
+                );
 
         mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isNotFound())
@@ -78,46 +105,82 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "john@example.com", roles = "PASSENGER")
+    @WithMockUser(
+            username = "john@example.com",
+            roles = "PASSENGER"
+    )
     void updateMe_validRequest_returns200() throws Exception {
+
         UserResponse updated = new UserResponse(
-                1L, "Jane", "Smith", "john@example.com", Role.PASSENGER, true);
+                "user-1",
+                "Jane",
+                "Smith",
+                "john@example.com",
+                Role.PASSENGER,
+                true
+        );
 
-        when(userService.updateProfile(eq("john@example.com"), any())).thenReturn(updated);
+        when(userService.updateProfile(
+                eq("john@example.com"),
+                any()
+        )).thenReturn(updated);
 
-        UpdateProfileRequest req = new UpdateProfileRequest();
+        UpdateProfileRequest req =
+                new UpdateProfileRequest();
+
         req.setFirstName("Jane");
         req.setLastName("Smith");
 
-        mockMvc.perform(put("/api/users/me")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        put("/api/users/me")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(req)
+                                )
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.firstName").value("Jane"))
-                .andExpect(jsonPath("$.lastName").value("Smith"));
+                .andExpect(jsonPath("$.firstName")
+                        .value("Jane"))
+                .andExpect(jsonPath("$.lastName")
+                        .value("Smith"));
     }
 
     @Test
-    @WithMockUser(username = "john@example.com", roles = "PASSENGER")
+    @WithMockUser(
+            username = "john@example.com",
+            roles = "PASSENGER"
+    )
     void updateMe_blankFields_returns400() throws Exception {
-        mockMvc.perform(put("/api/users/me")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"firstName\":\"\",\"lastName\":\"\"}"))
+
+        mockMvc.perform(
+                        put("/api/users/me")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"firstName\":\"\",\"lastName\":\"\"}"
+                                )
+                )
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void updateMe_unauthenticated_returns401() throws Exception {
-        UpdateProfileRequest req = new UpdateProfileRequest();
+
+        UpdateProfileRequest req =
+                new UpdateProfileRequest();
+
         req.setFirstName("Jane");
         req.setLastName("Smith");
 
-        mockMvc.perform(put("/api/users/me")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        put("/api/users/me")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(req)
+                                )
+                )
                 .andExpect(status().isUnauthorized());
     }
 }

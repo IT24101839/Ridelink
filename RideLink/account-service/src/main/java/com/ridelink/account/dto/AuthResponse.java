@@ -4,7 +4,7 @@ import com.ridelink.account.entity.Role;
 
 public record AuthResponse(
         String token,
-        Long userId,
+        String userId,
         String email,
         String firstName,
         String lastName,

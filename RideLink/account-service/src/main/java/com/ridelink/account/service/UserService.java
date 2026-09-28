@@ -27,38 +27,61 @@ public class UserService {
                 .toList();
     }
 
-    public UserResponse updateStatus(Long id, StatusUpdateRequest request) {
+    public UserResponse updateStatus(
+            String id,
+            StatusUpdateRequest request) {
+
         User user = findById(id);
         user.setActive(request.getActive());
+
         return toResponse(userRepository.save(user));
     }
 
-    public UserResponse updateRole(Long id, RoleUpdateRequest request) {
+    public UserResponse updateRole(
+            String id,
+            RoleUpdateRequest request) {
+
         User user = findById(id);
         user.setRole(request.getRole());
+
         return toResponse(userRepository.save(user));
     }
 
     public UserResponse getCurrentUser(String email) {
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException(email));
+                .orElseThrow(() ->
+                        new UserNotFoundException(email)
+                );
+
         return toResponse(user);
     }
 
-    public UserResponse updateProfile(String email, UpdateProfileRequest request) {
+    public UserResponse updateProfile(
+            String email,
+            UpdateProfileRequest request) {
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException(email));
+                .orElseThrow(() ->
+                        new UserNotFoundException(email)
+                );
+
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
+
         return toResponse(userRepository.save(user));
     }
 
-    private User findById(Long id) {
+    private User findById(String id) {
+
         return userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
+                .orElseThrow(() ->
+                        new UserNotFoundException(id)
+                );
     }
 
     public UserResponse toResponse(User user) {
+
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),

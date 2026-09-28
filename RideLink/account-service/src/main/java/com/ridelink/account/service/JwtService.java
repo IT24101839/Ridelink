@@ -19,12 +19,18 @@ public class JwtService {
 
     public JwtService(JwtProperties jwtProperties) {
         this.signingKey = Keys.hmacShaKeyFor(
-                jwtProperties.secret().getBytes(StandardCharsets.UTF_8));
+                jwtProperties.secret().getBytes(StandardCharsets.UTF_8)
+        );
         this.expirationMs = jwtProperties.expirationMs();
     }
 
-    public String generateToken(String subject, String role, Long userId) {
+    public String generateToken(
+            String subject,
+            String role,
+            String userId) {
+
         long now = System.currentTimeMillis();
+
         return Jwts.builder()
                 .subject(subject)
                 .claim("role", role)

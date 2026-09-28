@@ -36,13 +36,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class AuthControllerTest {
 
-    @Autowired WebApplicationContext context;
+    @Autowired
+    WebApplicationContext context;
 
-    @MockitoBean AuthService authService;
-    @MockitoBean UserService userService;
-    @MockitoBean JwtService jwtService;
+    @MockitoBean
+    AuthService authService;
+
+    @MockitoBean
+    UserService userService;
+
+    @MockitoBean
+    JwtService jwtService;
 
     MockMvc mockMvc;
+
     final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -56,113 +63,204 @@ class AuthControllerTest {
     @Test
     @WithMockUser
     void register_passenger_returns201() throws Exception {
-        User user = User.builder().id(1L).firstName("John").lastName("Doe")
-                .email("john@example.com").password("hashed")
-                .role(Role.PASSENGER).active(true).build();
 
-        when(authService.register(any())).thenReturn(user);
-        when(userService.toResponse(user)).thenReturn(
-                new UserResponse(1L, "John", "Doe", "john@example.com", Role.PASSENGER, true));
+        User user = User.builder()
+                .id("user-1")
+                .firstName("John")
+                .lastName("Doe")
+                .email("john@example.com")
+                .password("hashed")
+                .role(Role.PASSENGER)
+                .active(true)
+                .build();
 
-        mockMvc.perform(post("/api/auth/register")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registerRequest(Role.PASSENGER))))
+        when(authService.register(any()))
+                .thenReturn(user);
+
+        when(userService.toResponse(user))
+                .thenReturn(
+                        new UserResponse(
+                                "user-1",
+                                "John",
+                                "Doe",
+                                "john@example.com",
+                                Role.PASSENGER,
+                                true
+                        )
+                );
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                registerRequest(Role.PASSENGER)
+                                        )
+                                )
+                )
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("john@example.com"))
-                .andExpect(jsonPath("$.role").value("PASSENGER"));
+                .andExpect(jsonPath("$.email")
+                        .value("john@example.com"))
+                .andExpect(jsonPath("$.role")
+                        .value("PASSENGER"));
     }
 
     @Test
     @WithMockUser
     void register_adminRole_returns400() throws Exception {
-        when(authService.register(any())).thenThrow(new AdminRegistrationException());
 
-        mockMvc.perform(post("/api/auth/register")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registerRequest(Role.ADMIN))))
+        when(authService.register(any()))
+                .thenThrow(new AdminRegistrationException());
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                registerRequest(Role.ADMIN)
+                                        )
+                                )
+                )
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("ADMIN role cannot be registered publicly"));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(
+                                        "ADMIN role cannot be registered publicly"
+                                )
+                );
     }
 
     @Test
     @WithMockUser
     void register_duplicateEmail_returns409() throws Exception {
-        when(authService.register(any()))
-                .thenThrow(new EmailAlreadyExistsException("john@example.com"));
 
-        mockMvc.perform(post("/api/auth/register")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registerRequest(Role.PASSENGER))))
+        when(authService.register(any()))
+                .thenThrow(
+                        new EmailAlreadyExistsException(
+                                "john@example.com"
+                        )
+                );
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                registerRequest(Role.PASSENGER)
+                                        )
+                                )
+                )
                 .andExpect(status().isConflict());
     }
 
     @Test
     @WithMockUser
     void register_missingFields_returns400() throws Exception {
-        mockMvc.perform(post("/api/auth/register")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @WithMockUser
     void login_success_returns200WithToken() throws Exception {
+
         AuthResponse authResponse = new AuthResponse(
-                "tok.en.here", 1L, "john@example.com", "John", "Doe", Role.PASSENGER);
+                "tok.en.here",
+                "user-1",
+                "john@example.com",
+                "John",
+                "Doe",
+                Role.PASSENGER
+        );
 
-        when(authService.login(any())).thenReturn(authResponse);
+        when(authService.login(any()))
+                .thenReturn(authResponse);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest())))
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                loginRequest()
+                                        )
+                                )
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("tok.en.here"))
-                .andExpect(jsonPath("$.email").value("john@example.com"));
+                .andExpect(jsonPath("$.token")
+                        .value("tok.en.here"))
+                .andExpect(jsonPath("$.userId")
+                        .value("user-1"))
+                .andExpect(jsonPath("$.email")
+                        .value("john@example.com"));
     }
 
     @Test
     @WithMockUser
     void login_invalidCredentials_returns401() throws Exception {
-        when(authService.login(any())).thenThrow(new InvalidCredentialsException());
 
-        mockMvc.perform(post("/api/auth/login")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest())))
+        when(authService.login(any()))
+                .thenThrow(new InvalidCredentialsException());
+
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                loginRequest()
+                                        )
+                                )
+                )
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid email or password"));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value("Invalid email or password")
+                );
     }
 
     @Test
     @WithMockUser
     void login_missingFields_returns400() throws Exception {
-        mockMvc.perform(post("/api/auth/login")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
                 .andExpect(status().isBadRequest());
     }
 
     private RegisterRequest registerRequest(Role role) {
+
         RegisterRequest req = new RegisterRequest();
+
         req.setFirstName("John");
         req.setLastName("Doe");
         req.setEmail("john@example.com");
         req.setPassword("password123");
         req.setRole(role);
+
         return req;
     }
 
     private LoginRequest loginRequest() {
+
         LoginRequest req = new LoginRequest();
+
         req.setEmail("john@example.com");
         req.setPassword("password123");
+
         return req;
     }
 }

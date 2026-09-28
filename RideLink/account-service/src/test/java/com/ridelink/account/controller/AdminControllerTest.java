@@ -33,12 +33,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class AdminControllerTest {
 
-    @Autowired WebApplicationContext context;
+    @Autowired
+    WebApplicationContext context;
 
-    @MockitoBean UserService userService;
-    @MockitoBean JwtService jwtService;
+    @MockitoBean
+    UserService userService;
+
+    @MockitoBean
+    JwtService jwtService;
 
     MockMvc mockMvc;
+
     final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -50,27 +55,38 @@ class AdminControllerTest {
     }
 
     private static final UserResponse USER = new UserResponse(
-            1L, "John", "Doe", "john@example.com", Role.PASSENGER, true);
+            "user-1",
+            "John",
+            "Doe",
+            "john@example.com",
+            Role.PASSENGER,
+            true
+    );
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void getAllUsers_adminToken_returns200() throws Exception {
-        when(userService.getAllUsers()).thenReturn(List.of(USER));
+
+        when(userService.getAllUsers())
+                .thenReturn(List.of(USER));
 
         mockMvc.perform(get("/api/admin/users"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value("john@example.com"));
+                .andExpect(jsonPath("$[0].email")
+                        .value("john@example.com"));
     }
 
     @Test
     @WithMockUser(roles = "PASSENGER")
     void getAllUsers_passengerToken_returns403() throws Exception {
+
         mockMvc.perform(get("/api/admin/users"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void getAllUsers_unauthenticated_returns401() throws Exception {
+
         mockMvc.perform(get("/api/admin/users"))
                 .andExpect(status().isUnauthorized());
     }
@@ -78,18 +94,28 @@ class AdminControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateStatus_deactivate_returns200() throws Exception {
+
         UserResponse deactivated = new UserResponse(
-                1L, "John", "Doe", "john@example.com", Role.PASSENGER, false);
+                "user-1",
+                "John",
+                "Doe",
+                "john@example.com",
+                Role.PASSENGER,
+                false
+        );
 
         StatusUpdateRequest req = new StatusUpdateRequest();
         req.setActive(false);
 
-        when(userService.updateStatus(eq(1L), any())).thenReturn(deactivated);
+        when(userService.updateStatus(eq("user-1"), any()))
+                .thenReturn(deactivated);
 
-        mockMvc.perform(patch("/api/admin/users/1/status")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/status")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }
@@ -97,57 +123,80 @@ class AdminControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateStatus_userNotFound_returns404() throws Exception {
-        when(userService.updateStatus(eq(99L), any()))
-                .thenThrow(new UserNotFoundException(99L));
+
+        when(userService.updateStatus(eq("missing-user"), any()))
+                .thenThrow(
+                        new UserNotFoundException(
+                                "User not found with id: missing-user"
+                        )
+                );
 
         StatusUpdateRequest req = new StatusUpdateRequest();
         req.setActive(false);
 
-        mockMvc.perform(patch("/api/admin/users/99/status")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/missing-user/status")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isNotFound());
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateStatus_missingBody_returns400() throws Exception {
-        mockMvc.perform(patch("/api/admin/users/1/status")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/status")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @WithMockUser(roles = "PASSENGER")
     void updateStatus_passengerToken_returns403() throws Exception {
+
         StatusUpdateRequest req = new StatusUpdateRequest();
         req.setActive(false);
 
-        mockMvc.perform(patch("/api/admin/users/1/status")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/status")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateRole_returns200() throws Exception {
+
         UserResponse upgraded = new UserResponse(
-                1L, "John", "Doe", "john@example.com", Role.DRIVER, true);
+                "user-1",
+                "John",
+                "Doe",
+                "john@example.com",
+                Role.DRIVER,
+                true
+        );
 
         RoleUpdateRequest req = new RoleUpdateRequest();
         req.setRole(Role.DRIVER);
 
-        when(userService.updateRole(eq(1L), any())).thenReturn(upgraded);
+        when(userService.updateRole(eq("user-1"), any()))
+                .thenReturn(upgraded);
 
-        mockMvc.perform(patch("/api/admin/users/1/role")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/role")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("DRIVER"));
     }
@@ -155,39 +204,52 @@ class AdminControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateRole_userNotFound_returns404() throws Exception {
-        when(userService.updateRole(eq(99L), any()))
-                .thenThrow(new UserNotFoundException(99L));
+
+        when(userService.updateRole(eq("missing-user"), any()))
+                .thenThrow(
+                        new UserNotFoundException(
+                                "User not found with id: missing-user"
+                        )
+                );
 
         RoleUpdateRequest req = new RoleUpdateRequest();
         req.setRole(Role.DRIVER);
 
-        mockMvc.perform(patch("/api/admin/users/99/role")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/missing-user/role")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isNotFound());
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateRole_missingBody_returns400() throws Exception {
-        mockMvc.perform(patch("/api/admin/users/1/role")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/role")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @WithMockUser(roles = "PASSENGER")
     void updateRole_passengerToken_returns403() throws Exception {
+
         RoleUpdateRequest req = new RoleUpdateRequest();
         req.setRole(Role.DRIVER);
 
-        mockMvc.perform(patch("/api/admin/users/1/role")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(
+                        patch("/api/admin/users/user-1/role")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
                 .andExpect(status().isForbidden());
     }
 }

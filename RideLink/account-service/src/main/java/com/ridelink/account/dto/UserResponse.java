@@ -3,7 +3,7 @@ package com.ridelink.account.dto;
 import com.ridelink.account.entity.Role;
 
 public record UserResponse(
-        Long id,
+        String id,
         String firstName,
         String lastName,
         String email,

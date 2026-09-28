@@ -34,16 +34,22 @@ public class AdminController {
     @PatchMapping("/users/{id}/status")
     @Operation(summary = "Activate or deactivate a user account (ADMIN only)")
     public ResponseEntity<UserResponse> updateStatus(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody StatusUpdateRequest request) {
-        return ResponseEntity.ok(userService.updateStatus(id, request));
+
+        return ResponseEntity.ok(
+                userService.updateStatus(id, request)
+        );
     }
 
     @PatchMapping("/users/{id}/role")
     @Operation(summary = "Change a user's role (ADMIN only)")
     public ResponseEntity<UserResponse> updateRole(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody RoleUpdateRequest request) {
-        return ResponseEntity.ok(userService.updateRole(id, request));
+
+        return ResponseEntity.ok(
+                userService.updateRole(id, request)
+        );
     }
 }
