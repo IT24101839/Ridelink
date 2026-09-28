@@ -59,7 +59,7 @@ public class VehicleController {
             @ApiResponse(responseCode = "400", description = "Vehicle ID is malformed")
     })
     public ResponseEntity<VehicleResponse> getVehicleById(
-            @Parameter(description = "Vehicle ID", example = "1") @PathVariable Long id) {
+            @Parameter(description = "MongoDB ObjectId of the vehicle", example = "66a1b2c3d4e5f60718293a4c") @PathVariable String id) {
         return ResponseEntity.ok(toResponse(vehicleService.getVehicleById(id)));
     }
 
@@ -72,7 +72,7 @@ public class VehicleController {
             @ApiResponse(responseCode = "409", description = "Registration number already exists")
     })
     public ResponseEntity<VehicleResponse> updateVehicle(
-            @Parameter(description = "Vehicle ID", example = "1") @PathVariable Long id,
+            @Parameter(description = "MongoDB ObjectId of the vehicle", example = "66a1b2c3d4e5f60718293a4c") @PathVariable String id,
             @Valid @RequestBody VehicleRequest request) {
         return ResponseEntity.ok(toResponse(
                 vehicleService.updateVehicle(id, toEntity(request), request.driverId())));
@@ -86,7 +86,7 @@ public class VehicleController {
             @ApiResponse(responseCode = "400", description = "Vehicle ID is malformed")
     })
     public ResponseEntity<Void> deleteVehicle(
-            @Parameter(description = "Vehicle ID", example = "1") @PathVariable Long id) {
+            @Parameter(description = "MongoDB ObjectId of the vehicle", example = "66a1b2c3d4e5f60718293a4c") @PathVariable String id) {
         vehicleService.deleteVehicle(id);
         return ResponseEntity.noContent().build();
     }
@@ -102,6 +102,6 @@ public class VehicleController {
 
     private static VehicleResponse toResponse(Vehicle vehicle) {
         return new VehicleResponse(vehicle.getId(), vehicle.getRegistrationNumber(), vehicle.getVehicleType(),
-                vehicle.getModel(), vehicle.getStatus(), vehicle.getDriver().getId());
+                vehicle.getModel(), vehicle.getStatus(), vehicle.getDriverId());
     }
 }

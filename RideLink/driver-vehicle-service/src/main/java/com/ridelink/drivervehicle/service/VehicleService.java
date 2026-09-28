@@ -8,14 +8,14 @@ import com.ridelink.drivervehicle.repository.VehicleRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
-@Transactional
 public class VehicleService {
     private final VehicleRepository vehicleRepository;
     private final DriverRepository driverRepository;
@@ -28,62 +28,72 @@ public class VehicleService {
         this.validator = validator;
     }
 
-    public Vehicle createVehicle(Vehicle vehicle, Long driverId) {
-        Driver driver = findDriver(driverId);
-        driver.addVehicle(vehicle);
+    public Vehicle createVehicle(Vehicle vehicle, String driverId) {
+        findDriver(driverId);
+        vehicle.setDriverId(driverId);
         if (vehicle.getStatus() == null) {
             vehicle.setStatus(VehicleStatus.ACTIVE);
         }
+        vehicle.setRegistrationNumber(normalizeRegistration(vehicle.getRegistrationNumber()));
         validate(vehicle);
         ensureRegistrationAvailable(vehicle.getRegistrationNumber(), null);
         return vehicleRepository.save(vehicle);
     }
 
-    @Transactional(readOnly = true)
-    public Vehicle getVehicleById(Long id) {
-        return vehicleRepository.findById(id).orElseThrow(() -> new VehicleNotFoundException(id));
+    public Vehicle getVehicleById(String id) {
+        validateId(id);
+        return vehicleRepository.findById(Objects.requireNonNull(id))
+            .orElseThrow(() -> new VehicleNotFoundException(id));
     }
 
-    @Transactional(readOnly = true)
     public List<Vehicle> getAllVehicles() {
         return vehicleRepository.findAll();
     }
 
-    public Vehicle updateVehicle(Long id, Vehicle updatedVehicle, Long driverId) {
+    public Vehicle updateVehicle(String id, Vehicle updatedVehicle, String driverId) {
         Vehicle existingVehicle = getVehicleById(id);
-        Driver driver = findDriver(driverId);
+        findDriver(driverId);
 
-        existingVehicle.setRegistrationNumber(updatedVehicle.getRegistrationNumber());
+        existingVehicle.setRegistrationNumber(normalizeRegistration(updatedVehicle.getRegistrationNumber()));
         existingVehicle.setVehicleType(updatedVehicle.getVehicleType());
         existingVehicle.setModel(updatedVehicle.getModel());
         existingVehicle.setStatus(updatedVehicle.getStatus() == null
                 ? existingVehicle.getStatus() : updatedVehicle.getStatus());
-        if (!existingVehicle.getDriver().getId().equals(driver.getId())) {
-            existingVehicle.getDriver().removeVehicle(existingVehicle);
-            driver.addVehicle(existingVehicle);
-        }
+        existingVehicle.setDriverId(driverId);
 
         validate(existingVehicle);
         ensureRegistrationAvailable(existingVehicle.getRegistrationNumber(), id);
         return vehicleRepository.save(existingVehicle);
     }
 
-    public void deleteVehicle(Long id) {
+    public void deleteVehicle(String id) {
+        validateId(id);
         Vehicle vehicle = getVehicleById(id);
-        vehicle.getDriver().removeVehicle(vehicle);
+        vehicleRepository.delete(Objects.requireNonNull(vehicle));
     }
 
-    private Driver findDriver(Long driverId) {
-        return driverRepository.findById(driverId).orElseThrow(() -> new DriverNotFoundException(driverId));
+    private Driver findDriver(String driverId) {
+        validateId(driverId);
+        return driverRepository.findById(Objects.requireNonNull(driverId))
+            .orElseThrow(() -> new DriverNotFoundException(driverId));
     }
 
-    private void ensureRegistrationAvailable(String registrationNumber, Long currentVehicleId) {
-        boolean alreadyExists = currentVehicleId == null
-                ? vehicleRepository.existsByRegistrationNumberIgnoreCase(registrationNumber)
-                : vehicleRepository.existsByRegistrationNumberIgnoreCaseAndIdNot(registrationNumber, currentVehicleId);
-        if (alreadyExists) {
-            throw new VehicleRegistrationAlreadyExistsException(registrationNumber);
+    private void validateId(String id) {
+        if (!ObjectId.isValid(id)) {
+            throw new InvalidMongoIdException(id);
         }
+    }
+
+    private void ensureRegistrationAvailable(String registrationNumber, String currentVehicleId) {
+        vehicleRepository.findByRegistrationNumber(registrationNumber).ifPresent(existing -> {
+            if (!existing.getId().equals(currentVehicleId)) {
+                throw new VehicleRegistrationAlreadyExistsException(registrationNumber);
+            }
+        });
+    }
+
+    private String normalizeRegistration(String registrationNumber) {
+        return registrationNumber == null ? null : registrationNumber.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private void validate(Vehicle vehicle) {

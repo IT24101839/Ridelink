@@ -1,40 +1,37 @@
 package com.ridelink.drivervehicle.entity;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "vehicles")
+@Document(collection = "vehicles")
 public class Vehicle {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
 
     @NotBlank @Size(max = 20)
-    @Column(name = "registration_number", nullable = false, unique = true, length = 20)
+    @Indexed(unique = true)
     private String registrationNumber;
 
     @NotBlank @Size(max = 50)
-    @Column(name = "vehicle_type", nullable = false, length = 50)
     private String vehicleType;
 
     @NotBlank @Size(max = 100)
-    @Column(nullable = false, length = 100)
     private String model;
 
-    @NotNull @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @NotNull
     private VehicleStatus status = VehicleStatus.ACTIVE;
 
-    @NotNull @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "driver_id", nullable = false)
-    private Driver driver;
+    @NotBlank
+    private String driverId;
 
     public Vehicle() {}
 
-    public Long getId() { return id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     public String getRegistrationNumber() { return registrationNumber; }
     public void setRegistrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; }
     public String getVehicleType() { return vehicleType; }
@@ -43,6 +40,6 @@ public class Vehicle {
     public void setModel(String model) { this.model = model; }
     public VehicleStatus getStatus() { return status; }
     public void setStatus(VehicleStatus status) { this.status = status; }
-    public Driver getDriver() { return driver; }
-    public void setDriver(Driver driver) { this.driver = driver; }
+    public String getDriverId() { return driverId; }
+    public void setDriverId(String driverId) { this.driverId = driverId; }
 }

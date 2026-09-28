@@ -2,6 +2,9 @@ package com.ridelink.drivervehicle.controller;
 
 import com.ridelink.drivervehicle.dto.DriverRequest;
 import com.ridelink.drivervehicle.dto.DriverResponse;
+import com.ridelink.drivervehicle.dto.AvailabilityUpdateRequest;
+import com.ridelink.drivervehicle.dto.LocationUpdateRequest;
+import com.ridelink.drivervehicle.dto.ServiceAreaUpdateRequest;
 import com.ridelink.drivervehicle.entity.Driver;
 import com.ridelink.drivervehicle.service.DriverService;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -58,7 +61,7 @@ public class DriverController {
             @ApiResponse(responseCode = "400", description = "Driver ID is malformed")
     })
     public ResponseEntity<DriverResponse> getDriverById(
-            @Parameter(description = "Driver ID", example = "1") @PathVariable Long id) {
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id) {
         return ResponseEntity.ok(toResponse(driverService.getDriverById(id)));
     }
 
@@ -71,10 +74,50 @@ public class DriverController {
             @ApiResponse(responseCode = "409", description = "Email already exists")
     })
     public ResponseEntity<DriverResponse> updateDriver(
-            @Parameter(description = "Driver ID", example = "1") @PathVariable Long id,
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id,
             @Valid @RequestBody DriverRequest request) {
         return ResponseEntity.ok(toResponse(driverService.updateDriver(id, toEntity(request))));
     }
+
+        @PatchMapping("/{id}/availability")
+        @Operation(summary = "Update driver availability", description = "Changes the driver's availability status.")
+        @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Driver availability updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid status or driver ID"),
+            @ApiResponse(responseCode = "404", description = "Driver not found")
+        })
+        public ResponseEntity<DriverResponse> updateAvailability(
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id,
+            @Valid @RequestBody AvailabilityUpdateRequest request) {
+        return ResponseEntity.ok(toResponse(driverService.updateAvailability(id, request.status())));
+        }
+
+        @PatchMapping("/{id}/location")
+        @Operation(summary = "Update driver location", description = "Updates the driver's current coordinates.")
+        @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Driver location updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid coordinates or driver ID"),
+            @ApiResponse(responseCode = "404", description = "Driver not found")
+        })
+        public ResponseEntity<DriverResponse> updateLocation(
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id,
+            @Valid @RequestBody LocationUpdateRequest request) {
+        return ResponseEntity.ok(toResponse(driverService.updateLocation(
+            id, request.latitude(), request.longitude())));
+        }
+
+        @PatchMapping("/{id}/service-area")
+        @Operation(summary = "Update driver service area", description = "Changes the area in which the driver provides service.")
+        @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Driver service area updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid service area or driver ID"),
+            @ApiResponse(responseCode = "404", description = "Driver not found")
+        })
+        public ResponseEntity<DriverResponse> updateServiceArea(
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id,
+            @Valid @RequestBody ServiceAreaUpdateRequest request) {
+        return ResponseEntity.ok(toResponse(driverService.updateServiceArea(id, request.serviceArea())));
+        }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a driver", description = "Deletes the driver and its registered vehicles.")
@@ -84,7 +127,7 @@ public class DriverController {
             @ApiResponse(responseCode = "400", description = "Driver ID is malformed")
     })
     public ResponseEntity<Void> deleteDriver(
-            @Parameter(description = "Driver ID", example = "1") @PathVariable Long id) {
+            @Parameter(description = "MongoDB ObjectId of the driver", example = "66a1b2c3d4e5f60718293a4b") @PathVariable String id) {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
     }

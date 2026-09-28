@@ -1,7 +1,7 @@
 package com.ridelink.drivervehicle.service;
 
 public class VehicleNotFoundException extends RuntimeException {
-    public VehicleNotFoundException(Long id) {
+    public VehicleNotFoundException(String id) {
         super("Vehicle not found with id: " + id);
     }
 }

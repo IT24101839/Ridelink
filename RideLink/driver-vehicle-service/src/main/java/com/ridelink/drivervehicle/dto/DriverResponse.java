@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Driver details returned by the service")
 public record DriverResponse(
-        @Schema(description = "Driver identifier", example = "1") Long id,
+        @Schema(description = "MongoDB ObjectId for the driver", example = "66a1b2c3d4e5f60718293a4b") String id,
         @Schema(description = "Driver's full name", example = "Ayesha Perera") String name,
         @Schema(description = "Contact phone number", example = "+94771234567") String phone,
         @Schema(description = "Unique contact email", example = "ayesha.perera@example.com") String email,
