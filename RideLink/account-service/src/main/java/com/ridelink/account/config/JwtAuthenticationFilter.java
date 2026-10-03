@@ -51,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = claims.getSubject();
             String role  = claims.get("role", String.class);
 
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (email != null && !email.isBlank() && role != null && !role.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
                 String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
                 UsernamePasswordAuthenticationToken auth =
@@ -64,7 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         } catch (JwtException | IllegalArgumentException ignored) {
-            // Malformed token — leave SecurityContext empty
+            // Malformed token â€” leave SecurityContext empty
         }
 
         filterChain.doFilter(request, response);
