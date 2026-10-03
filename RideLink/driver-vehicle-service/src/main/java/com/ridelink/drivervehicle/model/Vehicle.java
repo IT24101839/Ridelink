@@ -1,17 +1,19 @@
 package com.ridelink.drivervehicle.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
 import java.time.Instant;
 
-@Entity
-@Table(name="vehicles")
+@Document("vehicles")
 public class Vehicle {
-    @Id @GeneratedValue(strategy=GenerationType.UUID) private String id;
-    @Column(nullable=false) private String driverId;
-    @Column(nullable=false,unique=true) private String plateNumber;
+    @Id private String id = java.util.UUID.randomUUID().toString();
+    @Indexed private String driverId;
+    @Indexed(unique = true) private String plateNumber;
     private String make;
     private String model;
-    @Column(name="manufacture_year") private int year;
+    private int year;
     private String color;
     private String type;
     private int seatCapacity;

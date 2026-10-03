@@ -1,21 +1,23 @@
 package com.ridelink.drivervehicle.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
 import java.time.Instant;
 import java.util.*;
 
-@Entity
-@Table(name = "drivers")
+@Document("drivers")
 public class Driver {
-    @Id @GeneratedValue(strategy = GenerationType.UUID) private String id;
-    @Column(nullable = false, unique = true) private String accountId;
+    @Id private String id = java.util.UUID.randomUUID().toString();
+    @Indexed(unique = true) private String accountId;
     private String fullName;
     private String email;
     private String phone;
-    @Column(nullable = false, unique = true) private String licenseNumber;
-    @Enumerated(EnumType.STRING) private DriverStatus status = DriverStatus.OFFLINE;
-    @ElementCollection(fetch = FetchType.EAGER) private Set<String> serviceAreas = new HashSet<>();
+    @Indexed(unique = true) private String licenseNumber;
+    @Indexed private DriverStatus status = DriverStatus.OFFLINE;
+    private Set<String> serviceAreas = new HashSet<>();
     private Double currentLat;
     private Double currentLng;
     private double rating;

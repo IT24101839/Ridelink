@@ -3,10 +3,12 @@ import com.ridelink.drivervehicle.dto.DriverRequests.Reservation;
 import com.ridelink.drivervehicle.model.Driver;
 import com.ridelink.drivervehicle.service.DriverService;
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 @RestController @RequestMapping("/api/internal/drivers") @PreAuthorize("hasRole('SERVICE')")
+@SecurityRequirement(name = "serviceToken")
 public class InternalDriverController {
     private final DriverService service;
     public InternalDriverController(DriverService service){this.service=service;}

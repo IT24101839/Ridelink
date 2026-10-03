@@ -24,19 +24,12 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties={
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "security.jwt-secret=01234567890123456789012345678901",
-    "security.internal-token=driver-test-token","logging.level.root=WARN"})
+    "security.internal-token=driver-test-token", "spring.data.mongodb.uri=mongodb://127.0.0.1:1/unreachable","logging.level.root=WARN"})
+@org.springframework.test.context.ActiveProfiles("local-integration")
 @AutoConfigureMockMvc
-class DriverIntegrationTest {
-    static final de.bwaldvogel.mongo.MongoServer MONGO = new de.bwaldvogel.mongo.MongoServer(
-            new de.bwaldvogel.mongo.backend.memory.MemoryBackend());
-    static final java.net.InetSocketAddress ADDRESS = MONGO.bind();
-    @org.springframework.test.context.DynamicPropertySource
-    static void mongoProperties(org.springframework.test.context.DynamicPropertyRegistry registry){
-        registry.add("spring.data.mongodb.uri",()->"mongodb://localhost:"+ADDRESS.getPort()+"/driver_test");
-    }
-    @AfterAll static void stopMongo(){MONGO.shutdownNow();}
+class DriverLocalIntegrationTest {
     static final String SECRET="01234567890123456789012345678901";
     static final String BODY="""
         {"fullName":"Driver One","email":"one@example.com","phone":"0771234567",

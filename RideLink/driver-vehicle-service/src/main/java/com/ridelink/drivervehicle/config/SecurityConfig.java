@@ -24,7 +24,7 @@ public class SecurityConfig {
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/driver-vehicle/health", "/swagger-ui/**",
-                                "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                                "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                         .requestMatchers("/api/internal/**").hasRole("SERVICE")
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors

@@ -4,6 +4,7 @@ import com.ridelink.drivervehicle.model.Driver;
 import com.ridelink.drivervehicle.security.UserPrincipal;
 import com.ridelink.drivervehicle.service.DriverService;
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 
 @RestController @RequestMapping("/api/v1/drivers")
 @PreAuthorize("hasAnyRole('DRIVER','ADMIN')")
+@SecurityRequirement(name = "bearerAuth")
 public class DriverController {
     private final DriverService service;
     public DriverController(DriverService service){this.service=service;}
