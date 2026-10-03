@@ -248,7 +248,7 @@ class RideServiceTest {
         when(fares.calculate(anyString(), any(), anyLong()))
                 .thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Fare unavailable"));
         hasStatus(() -> service.complete("ride-1", new CompleteRideRequest(BigDecimal.ONE), driver), 503);
-        verify(repository, never()).save(any());
+        verify(repository).save(argThat(r -> r.status() == RideStatus.IN_PROGRESS && r.completionRequestedAt() != null));
     }
 
     @Test void driverFailureDoesNotAssignRide() {

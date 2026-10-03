@@ -1,119 +1,94 @@
 package com.ridelink.drivervehicle.service;
-
-import com.ridelink.drivervehicle.entity.Driver;
-import com.ridelink.drivervehicle.entity.DriverStatus;
-import com.ridelink.drivervehicle.repository.DriverRepository;
-import com.ridelink.drivervehicle.repository.VehicleRepository;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Validator;
-import org.bson.types.ObjectId;
+import com.ridelink.drivervehicle.model.*;
+import com.ridelink.drivervehicle.dto.DriverRequests.*;
+import com.ridelink.drivervehicle.repository.*;
+import com.ridelink.drivervehicle.security.UserPrincipal;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import java.util.*;
 
 @Service
 public class DriverService {
-    private final DriverRepository driverRepository;
-    private final VehicleRepository vehicleRepository;
-    private final Validator validator;
-
-    public DriverService(DriverRepository driverRepository, VehicleRepository vehicleRepository, Validator validator) {
-        this.driverRepository = driverRepository;
-        this.vehicleRepository = vehicleRepository;
-        this.validator = validator;
+    private final DriverRepository drivers;
+    private final VehicleRepository vehicles;
+    private final MongoTemplate mongo;
+    public DriverService(DriverRepository drivers,VehicleRepository vehicles,MongoTemplate mongo){this.drivers=drivers;this.vehicles=vehicles;this.mongo=mongo;}
+    public Driver register(UserPrincipal user,Register request){
+        if(drivers.findByAccountId(user.userId()).isPresent())throw conflict("Driver profile already exists");
+        return drivers.insert(new Driver(user.userId(),request.fullName(),request.email(),request.phone(),
+                request.licenseNumber(),request.serviceAreas()));
     }
-
-    public Driver createDriver(Driver driver) {
-        if (driver.getStatus() == null) {
-            driver.setStatus(DriverStatus.UNAVAILABLE);
+    public Driver get(String id){return drivers.findById(id).orElseThrow(()->missing("Driver not found"));}
+    public Driver byAccount(String id){return drivers.findByAccountId(id).orElseThrow(()->missing("Driver not found"));}
+    public Driver owned(String id,UserPrincipal user){Driver d=get(id);authorize(d,user);return d;}
+    public Driver ownedAccount(String id,UserPrincipal user){
+        if(!user.isAdmin()&&!user.userId().equals(id))throw forbidden();
+        return byAccount(id);
+    }
+    public void authorize(Driver d,UserPrincipal user){
+        if(!user.isAdmin()&&!d.getAccountId().equals(user.userId()))throw forbidden();
+    }
+    public Driver availability(String id,Availability request,UserPrincipal user){
+        Driver d=get(id);authorize(d,user);
+        if(request.status()==DriverStatus.BUSY)throw conflict("BUSY is controlled by ride reservations");
+        if(request.status()==DriverStatus.AVAILABLE){
+            if(d.getReservedRideId()!=null)throw conflict("Driver has an active reservation");
+            if(!vehicles.existsByDriverIdAndActiveTrue(id))throw conflict("An active vehicle is required");
         }
-        driver.setEmail(normalizeEmail(driver.getEmail()));
-        validate(driver);
-        ensureEmailAvailable(driver.getEmail(), null);
-        return driverRepository.save(driver);
+        Criteria condition=Criteria.where("id").is(id);
+        if(request.status()==DriverStatus.AVAILABLE)condition.and("reservedRideId").is(null);
+        Driver updated=modify(condition,new Update().set("status",request.status()));
+        if(updated==null)throw conflict("Driver has an active reservation");
+        return updated;
     }
-
-    public Driver getDriverById(String id) {
-        validateId(id);
-        return driverRepository.findById(Objects.requireNonNull(id))
-            .orElseThrow(() -> new DriverNotFoundException(id));
+    public Driver location(String id,Location request,UserPrincipal user){
+        Driver d=get(id);authorize(d,user);return modify(Criteria.where("id").is(id),new Update().set("currentLat",request.currentLat()).set("currentLng",request.currentLng()));
     }
-
-    public List<Driver> getAllDrivers() {
-        return driverRepository.findAll();
+    public Driver areas(String id,Areas request,UserPrincipal user){
+        Driver d=get(id);authorize(d,user);return modify(Criteria.where("id").is(id),new Update().set("serviceAreas",request.serviceAreas()));
     }
-
-    public Driver updateDriver(String id, Driver updatedDriver) {
-        Driver existingDriver = getDriverById(id);
-
-        existingDriver.setName(updatedDriver.getName());
-        existingDriver.setPhone(updatedDriver.getPhone());
-        existingDriver.setEmail(normalizeEmail(updatedDriver.getEmail()));
-        existingDriver.setStatus(updatedDriver.getStatus() == null
-                ? existingDriver.getStatus() : updatedDriver.getStatus());
-        existingDriver.setServiceArea(updatedDriver.getServiceArea());
-        existingDriver.setCurrentLatitude(updatedDriver.getCurrentLatitude());
-        existingDriver.setCurrentLongitude(updatedDriver.getCurrentLongitude());
-
-        validate(existingDriver);
-        ensureEmailAvailable(existingDriver.getEmail(), id);
-        return driverRepository.save(existingDriver);
+    public Vehicle addVehicle(VehicleRequest r,UserPrincipal user){
+        owned(r.driverId(),user);
+        return vehicles.insert(new Vehicle(r.driverId(),r.plateNumber(),r.make(),r.model(),r.year(),r.color(),r.type(),r.seatCapacity()));
     }
-
-    public Driver updateAvailability(String id, DriverStatus status) {
-        Driver driver = getDriverById(id);
-        driver.setStatus(status);
-        validate(driver);
-        return driverRepository.save(driver);
+    public List<Vehicle> vehicles(String driverId,UserPrincipal user){owned(driverId,user);return vehicles.findByDriverId(driverId);}
+    public List<Driver> available(){
+        return drivers.findByStatusAndReservedRideIdIsNull(DriverStatus.AVAILABLE).stream()
+                .filter(d->vehicles.existsByDriverIdAndActiveTrue(d.getId())).toList();
     }
-
-    public Driver updateLocation(String id, Double latitude, Double longitude) {
-        Driver driver = getDriverById(id);
-        driver.setCurrentLatitude(latitude);
-        driver.setCurrentLongitude(longitude);
-        validate(driver);
-        return driverRepository.save(driver);
-    }
-
-    public Driver updateServiceArea(String id, String serviceArea) {
-        Driver driver = getDriverById(id);
-        driver.setServiceArea(serviceArea);
-        validate(driver);
-        return driverRepository.save(driver);
-    }
-
-    public void deleteDriver(String id) {
-        validateId(id);
-        Driver driver = getDriverById(id);
-        vehicleRepository.deleteAllByDriverId(id);
-        driverRepository.delete(Objects.requireNonNull(driver));
-    }
-
-    private void ensureEmailAvailable(String email, String currentDriverId) {
-        driverRepository.findByEmail(email).ifPresent(existing -> {
-            if (!existing.getId().equals(currentDriverId)) {
-                throw new DriverEmailAlreadyExistsException(email);
-            }
-        });
-    }
-
-    private String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
-    }
-
-    private void validateId(String id) {
-        if (!ObjectId.isValid(id)) {
-            throw new InvalidMongoIdException(id);
+    public Driver reserve(String id,String rideId){
+        if(vehicles.existsByDriverIdAndActiveTrue(id)){
+            Driver reserved=modify(Criteria.where("id").is(id).and("status").is(DriverStatus.AVAILABLE)
+                    .and("reservedRideId").is(null),new Update().set("reservedRideId",rideId).set("status",DriverStatus.BUSY));
+            if(reserved!=null)return reserved;
         }
+        Driver current=get(id);
+        if(rideId.equals(current.getReservedRideId()))return current;
+        throw conflict("Driver unavailable");
     }
-
-    private void validate(Driver driver) {
-        Set<ConstraintViolation<Driver>> violations = validator.validate(driver);
-        if (!violations.isEmpty()) {
-            throw new ConstraintViolationException(violations);
+    public Driver release(String id,String rideId){
+        // Match both reservation and status: concurrent OFFLINE updates cannot be overwritten.
+        for(DriverStatus status:List.of(DriverStatus.BUSY,DriverStatus.OFFLINE)){
+            Driver released=modify(Criteria.where("id").is(id).and("reservedRideId").is(rideId)
+                    .and("status").is(status),new Update().unset("reservedRideId")
+                    .set("status",status==DriverStatus.BUSY?DriverStatus.AVAILABLE:DriverStatus.OFFLINE));
+            if(released!=null)return released;
         }
+        Driver current=get(id);
+        if(current.getReservedRideId()==null)return current;
+        throw conflict("Reservation belongs to another ride");
     }
+    private Driver modify(Criteria condition,Update update){
+        return mongo.findAndModify(Query.query(condition),update,
+                FindAndModifyOptions.options().returnNew(true),Driver.class);
+    }
+    private ResponseStatusException conflict(String m){return new ResponseStatusException(HttpStatus.CONFLICT,m);}
+    private ResponseStatusException missing(String m){return new ResponseStatusException(HttpStatus.NOT_FOUND,m);}
+    private ResponseStatusException forbidden(){return new ResponseStatusException(HttpStatus.FORBIDDEN,"Access denied");}
 }

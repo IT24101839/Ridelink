@@ -1,13 +1,5 @@
 package com.ridelink.farepayment.dto;
-
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotNull;
-
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
-
-public record FareRequest(
-        @NotNull Long rideId,
-        @NotNull @DecimalMin("0.0") BigDecimal distanceKm,
-        @NotNull @DecimalMin("0") Integer durationMinutes
-) {
-}
+public record FareRequest(@NotBlank String rideId,
+        @NotNull @DecimalMin(value="0",inclusive=false) BigDecimal distanceKm,@Min(0) long durationMinutes) {}
