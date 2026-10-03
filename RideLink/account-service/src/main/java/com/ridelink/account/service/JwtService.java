@@ -56,7 +56,12 @@ public class JwtService {
     public boolean isTokenValid(String token) {
         try {
             Claims claims = extractAllClaims(token);
-            return claims.getExpiration().after(new Date());
+            String userId = claims.get("userId", String.class);
+            String role = claims.get("role", String.class);
+            return claims.getExpiration() != null && claims.getExpiration().after(new Date())
+                    && claims.getSubject() != null && !claims.getSubject().isBlank()
+                    && userId != null && !userId.isBlank()
+                    && role != null && java.util.Set.of("PASSENGER", "DRIVER", "ADMIN").contains(role);
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
