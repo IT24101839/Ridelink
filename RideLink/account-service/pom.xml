@@ -100,6 +100,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>de.bwaldvogel</groupId>
+            <artifactId>mongo-java-server</artifactId>
+            <version>1.47.0</version>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 
     <build>
