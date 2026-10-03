@@ -62,6 +62,35 @@ public class DriverServiceClient {
         }
     }
 
+    public void reserve(String driverId, String rideId) {
+        if (token.isBlank()) throw unavailable();
+        try {
+            client.put().uri("/api/internal/drivers/{id}/reservation", driverId)
+                    .header("X-Service-Token", token).body(java.util.Map.of("rideId", rideId))
+                    .retrieve().toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            throw mutationError(ex);
+        } catch (RestClientException ex) { throw unavailable(); }
+    }
+
+    public void release(String driverId, String rideId) {
+        if (token.isBlank()) throw unavailable();
+        try {
+            client.delete().uri("/api/internal/drivers/{id}/reservation/{rideId}", driverId, rideId)
+                    .header("X-Service-Token", token).retrieve().toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            throw mutationError(ex);
+        } catch (RestClientException ex) { throw unavailable(); }
+    }
+
+    private ApiException mutationError(RestClientResponseException ex) {
+        if (ex.getStatusCode().value() == 404)
+            return new ApiException(HttpStatus.NOT_FOUND, "Driver not found");
+        if (ex.getStatusCode().value() == 409)
+            return new ApiException(HttpStatus.CONFLICT, "Driver reservation conflict");
+        return unavailable();
+    }
+
     private <T> T get(String path, Class<T> type, Object... variables) {
         if (token.isBlank()) {
             throw unavailable();
