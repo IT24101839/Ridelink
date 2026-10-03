@@ -7,3 +7,5 @@ See [backend integration guide](../INTEGRATION.md) for authoritative request/res
 Final fare calculation is service-authenticated. Payment creation accepts rideId and paymentMethod only, verifies ownership through Ride, and prevents duplicate payments. Processing is a simulation. Receipts require COMPLETED status.
 
 No literal database credentials or JWT secret defaults are included.
+
+For Ride integration without Atlas or an installed MongoDB server, set SPRING_PROFILES_ACTIVE=local-integration. See [local integration setup](../LOCAL_INTEGRATION.md). Only persistence changes; JWT and service tokens remain required.
