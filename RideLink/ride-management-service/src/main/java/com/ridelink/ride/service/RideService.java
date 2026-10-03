@@ -62,11 +62,26 @@ public class RideService {
         requireRole(user, "ADMIN");
         Ride ride = find(id);
         requireState(ride, RideStatus.REQUESTED);
-        DriverProfile driver = drivers.byId(driverId);
-        if (!driver.available() || rides.existsByActiveDriverId(driver.id())) {
-            throw conflict("Driver is unavailable");
+        if (ride.activeDriverId() != null) {
+            if (!driverId.equals(ride.activeDriverId())) throw conflict("Another assignment is pending");
+            return finishAssignment(ride);
         }
-        return rides.save(ride.assign(driver.id(), Instant.now()));
+        DriverProfile driver = drivers.byId(driverId);
+        if (!driver.available() || rides.existsByActiveDriverId(driver.id())) throw conflict("Driver is unavailable");
+        // Durable intent and local uniqueness are saved before any remote reservation.
+        return finishAssignment(rides.save(ride.assignmentIntent(driver.id())));
+    }
+
+    private Ride finishAssignment(Ride ride) {
+        try { drivers.reserve(ride.activeDriverId(), ride.id()); }
+        catch (ApiException ex) {
+            if (ex.status() == HttpStatus.NOT_FOUND || ex.status() == HttpStatus.CONFLICT) {
+                rides.save(ride.assignmentIntent(null));
+            }
+            throw ex;
+        }
+        // On an uncertain write failure, retain the intent; retry never releases a valid reservation.
+        return rides.save(ride.assign(ride.activeDriverId(), Instant.now()));
     }
 
     public Ride accept(String id, UserPrincipal user) {
@@ -90,11 +105,18 @@ public class RideService {
         if (request.distanceKm() == null || request.distanceKm().signum() <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Completion distance must be greater than zero");
         }
-        Instant now = Instant.now();
-        long durationMinutes = Math.max(0, Duration.between(ride.startedAt(), now).toMinutes());
-        // Leave IN_PROGRESS intact on dependency failure. @Version protects the final write.
-        FareDetails fare = fares.calculate(id, request.distanceKm(), durationMinutes);
-        return rides.save(ride.transition(RideStatus.COMPLETED, now, request.distanceKm(), fare, null));
+        if (ride.completionRequestedAt() != null && ride.distanceKm().compareTo(request.distanceKm()) != 0)
+            throw conflict("Completion retry must use the original distance");
+        if (ride.completionRequestedAt() == null)
+            ride = rides.save(ride.completionIntent(request.distanceKm(), Instant.now()));
+        return finishCompletion(ride);
+    }
+
+    private Ride finishCompletion(Ride ride) {
+        long durationMinutes = Math.max(0, Duration.between(ride.startedAt(), ride.completionRequestedAt()).toMinutes());
+        FareDetails fare = fares.calculate(ride.id(), ride.distanceKm(), durationMinutes);
+        return releasePending(rides.save(ride.transition(RideStatus.COMPLETED,
+                ride.completionRequestedAt(), ride.distanceKm(), fare, null)));
     }
 
     public Ride cancel(String id, CancelRideRequest request, UserPrincipal user) {
@@ -106,13 +128,48 @@ public class RideService {
         if (ride.status() == RideStatus.COMPLETED || ride.status() == RideStatus.CANCELLED) {
             throw conflict("Terminal rides cannot be cancelled");
         }
-        return rides.save(ride.transition(RideStatus.CANCELLED, Instant.now(), null, null, request.reason()));
+        if (ride.completionRequestedAt() != null || (ride.status() == RideStatus.REQUESTED && ride.activeDriverId() != null))
+            throw conflict("An integration operation is pending; retry it before cancellation");
+        return releasePending(rides.save(ride.transition(RideStatus.CANCELLED, Instant.now(), null, null, request.reason())));
     }
 
     public PaymentContext paymentContext(String id) {
         Ride ride = find(id);
         requireState(ride, RideStatus.COMPLETED);
         return new PaymentContext(ride.id(), ride.riderId(), ride.driverId(), ride.status(), ride.fare());
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RideService.class);
+
+    private Ride releasePending(Ride ride) {
+        if (ride.releaseDriverId() == null) return ride;
+        try {
+            drivers.release(ride.releaseDriverId(), ride.id());
+        } catch (ApiException ex) {
+            // A missing driver or a newer reservation confirms this ride no longer holds the driver.
+            if (ex.status() != HttpStatus.NOT_FOUND && ex.status() != HttpStatus.CONFLICT) {
+                log.warn("Driver release pending for ride {}", ride.id());
+                return ride;
+            }
+        }
+        try { return rides.save(ride.released()); }
+        catch (org.springframework.dao.DataAccessException ex) {
+            log.warn("Release acknowledgement pending for ride {}", ride.id());
+            return ride;
+        }
+    }
+
+    public void recoverPendingOperations() {
+        var page = PageRequest.of(0, 50);
+        for (Ride ride : rides.findByStatusAndActiveDriverIdIsNotNull(RideStatus.REQUESTED, page)) {
+            try { finishAssignment(ride); } catch (RuntimeException ex) { log.warn("Assignment retry pending for {}", ride.id()); }
+        }
+        for (Ride ride : rides.findByStatusAndCompletionRequestedAtIsNotNull(RideStatus.IN_PROGRESS, page)) {
+            try { finishCompletion(ride); } catch (RuntimeException ex) { log.warn("Completion retry pending for {}", ride.id()); }
+        }
+        for (Ride ride : rides.findByReleaseDriverIdIsNotNull(page)) {
+            try { releasePending(ride); } catch (RuntimeException ex) { log.warn("Release retry pending for {}", ride.id()); }
+        }
     }
 
     private Ride find(String id) {
