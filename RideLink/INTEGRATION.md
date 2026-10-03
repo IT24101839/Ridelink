@@ -12,7 +12,7 @@ The four-module package build passed before implementing the later phases.
 
 Account continues to issue `sub=email`, `userId`, `role`, `iat`, and `exp`. Its validator now rejects missing identity/role/expiration claims without null-pointer failures.
 
-Driver remains MySQL/JPA. Driver and Vehicle IDs are generated string UUIDs. Driver.accountId and licenseNumber have database uniqueness constraints; plateNumber is unique. Driver profile creation derives accountId from the authenticated JWT. Extra accountId fields are rejected. User APIs require DRIVER or ADMIN, except registration which requires DRIVER. Vehicle access is checked against the owning driver.
+Driver now uses MongoDB (see [migration guide](MONGODB_LOCAL.md)). Driver and Vehicle IDs are generated string UUIDs. Driver.accountId and licenseNumber have database uniqueness constraints; plateNumber is unique. Driver profile creation derives accountId from the authenticated JWT. Extra accountId fields are rejected. User APIs require DRIVER or ADMIN, except registration which requires DRIVER. Vehicle access is checked against the owning driver.
 
 Driver fields: id, accountId, fullName, email, phone, licenseNumber, status, serviceAreas, currentLat/currentLng, rating, totalRides, createdAt. Rating and totalRides are read-only initialized statistics; no rating/statistics workflow was added. New profiles start OFFLINE. An active vehicle is required to become AVAILABLE. BUSY is reserved for the internal reservation flow.
 
@@ -47,7 +47,7 @@ All internal Driver APIs require `X-Service-Token: <DRIVER_SERVICE_TOKEN>`:
 
 Profile response: `{"id":"driver-profile-id","accountId":"account-id","status":"AVAILABLE"}`.
 
-Reservation uses a database row lock within a transaction. AVAILABLE becomes BUSY. The same ride can retry; a competing ride gets 409. Wrong-ride release gets 409. Releasing an already-free driver is harmless. Explicit OFFLINE is preserved on matching release.
+Reservation uses an atomic conditional MongoDB findAndModify. AVAILABLE becomes BUSY. The same ride can retry; a competing ride gets 409. Wrong-ride release gets 409. Releasing an already-free driver is harmless. Explicit OFFLINE is preserved on matching release.
 
 Ride's identity mapping remains:
 `JWT userId -> Driver.accountId -> Driver.id -> Ride.driverId`.
@@ -120,42 +120,42 @@ JWT signatures use the same UTF-8 JWT_SECRET across services, at least 32 bytes.
 
 | Service | Port default | Database |
 | --- | --- | --- |
-| Account | 8081 | MongoDB ridelink_account_db |
-| Driver | 8082 | MySQL ridelink_driver_vehicle_db |
-| Ride | 8083 | MongoDB ridelink_ride_management_db |
-| Payment | 8084 | MongoDB ridelink_fare_payment_db |
+| Account | 8081 | MongoDB ridelink_account |
+| Driver | 8082 | MongoDB ridelink_driver |
+| Ride | 8083 | MongoDB ridelink_ride |
+| Payment | 8084 | MongoDB ridelink_payment |
 
 Environment per process:
 - All: JWT_SECRET.
 - Account: MONGODB_URI; JWT_EXPIRATION_MS defaults 86400000.
-- Driver: DRIVER_DB_URL, DRIVER_DB_USERNAME (local default root), DRIVER_DB_PASSWORD (local default empty), DRIVER_SERVICE_TOKEN.
+- Driver: MONGODB_URI (credential-free localhost Driver DB default), DRIVER_SERVICE_TOKEN.
 - Ride: MONGODB_URI (credential-free localhost Ride DB default), DRIVER_SERVICE_URL (http://localhost:8082), DRIVER_SERVICE_TOKEN, FARE_SERVICE_URL (http://localhost:8084), FARE_SERVICE_TOKEN, RIDE_INTERNAL_TOKEN.
 - Payment: MONGODB_URI (credential-free localhost Payment DB default), FARE_SERVICE_TOKEN, RIDE_SERVICE_URL (http://localhost:8083), RIDE_INTERNAL_TOKEN.
-- Driver/Ride/Payment: PORT can override the service-specific default.
+- All services: PORT can override the service-specific default.
 - Ride/Payment: SERVICE_CONNECT_TIMEOUT_MS defaults 2000, SERVICE_READ_TIMEOUT_MS defaults 5000.
 
 Do not share a single database URI across all process environments. Account uses Boot 4's spring.mongodb properties; Ride/Payment use Boot 3's spring.data.mongodb properties.
 
-Mongo auto-index creation is enabled for Ride and Payment. Driver's development JPA schema mode remains update. For a deployed database, review migrations and index permissions before startup.
+Mongo auto-index creation is enabled for Driver, Ride, and Payment. For a deployed database, review migrations and index permissions before startup.
 
 ## Database ownership
 
-Every repository belongs to its own service database. Driver uses JPA only against Driver's configured MySQL database. Ride and Payment communicate over HTTP and never import or query one another's repositories.
+Every repository belongs to its own service database. Driver uses MongoDB repositories only against Driver's configured database. Ride and Payment communicate over HTTP and never import or query one another's repositories.
 
-Existing Payment records with numeric IDs or incompatible schemas need migration before using this version. No existing database was altered by this task's unit/MVC tests; Driver tests use isolated H2.
+Existing Payment records with numeric IDs or incompatible schemas need migration before using this version. No existing database was altered by this task's unit/MVC tests; Driver tests use a test-only Mongo-compatible in-memory server.
 
 ## Tests and validation
 
 Existing tests are retained. Added:
 - Account signed-token missing-claim and role tests.
-- Driver full-context/H2 tests: actual Account signing classes compile into a temporary test directory and issue a token consumed by Driver; identity spoofing, roles, duplicate profile, vehicle eligibility, internal APIs, reservation retries, wrong release, OFFLINE preservation, and concurrent row locking.
+- Driver full-context/Mongo-compatible persistence tests: actual Account signing classes compile into a temporary test directory and issue a token consumed by Driver; identity spoofing, roles, duplicate profile, vehicle eligibility, internal APIs, reservation retries, wrong release, OFFLINE preservation, and concurrent atomic reservations.
 - Ride reservation HTTP client tests and persisted assignment/completion/release recovery tests.
 - Payment MVC/service tests for fare idempotency, strict payloads, context ownership, duplicate payment, processing, receipt rules, and token boundaries.
 - Payment -> Ride HTTP client tests for path/header/identity/state and outage handling.
 
 Run Maven package from RideLink with Java 21 to build the full reactor, retaining each module's compiler target. Account/Driver/Payment are also validated separately with Java 17. Driver's real-Account-token test expects the sibling account-service sources, so run within the complete repository checkout.
 
-Final validation (2026-10-02):
+Previous integration validation (2026-10-02; superseded by the MongoDB migration results in [MONGODB_LOCAL.md](MONGODB_LOCAL.md)):
 
 | Module | Runtime | Tests | Passed | Failures | Errors | Skipped |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -194,7 +194,7 @@ All four package builds passed. The whole reactor also passed on Java 21 with pe
 - There is one payment per ride; a FAILED payment cannot create a second payment attempt under this minimal contract.
 - Vehicle/Driver rating and ride-statistics maintenance, payment refunds, and fare estimates are not part of this implementation.
 - Previously committed secrets remain in Git history until separately remediated.
-- The repository already tracks target artifacts. Builds refresh these generated files; source and test changes must be reviewed separately from generated output.
+- The repository already tracks target artifacts. Generated output is excluded from the MongoDB migration changes; rebuild from source before running.
 
 ## Files changed
 
@@ -260,3 +260,7 @@ All paths below are relative to the repository root. Generated target output is 
 - `RideLink/ride-management-service/src/test/java/com/ridelink/ride/client/DriverReservationClientTest.java`
 - `RideLink/ride-management-service/src/test/java/com/ridelink/ride/service/RideRecoveryTest.java`
 - `RideLink/ride-management-service/src/test/java/com/ridelink/ride/service/RideServiceTest.java`
+
+## Persistent Atlas configuration
+
+See [ATLAS_LOCAL.md](ATLAS_LOCAL.md) for one-time Windows user environment setup. Driver prefers DRIVER_MONGODB_URI; Payment prefers PAYMENT_MONGODB_URI. Both retain MONGODB_URI compatibility. All services explicitly select their own ridelink_account, ridelink_driver, ridelink_ride, or ridelink_payment database.
